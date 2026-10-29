@@ -31,7 +31,7 @@ import profiles  # noqa: E402
 
 # Top-level blocks that are ESP32 hardware wherever they live (board file or hardware package).
 HARDWARE_BLOCKS = ('esp32', 'psram', 'spi', 'i2c', 'ch422g', 'pca9554', 'tca9554', 'waveshare_io_ch32v003', 'esp_ldo',
-                   'esp32_hosted', 'display', 'esp32_rmt', 'i2s_audio', 'flash_layout')
+                   'esp32_hosted', 'display', 'esp32_rmt', 'i2s_audio', 'flash_layout', 'crowpanel_advance_io')
 # The screen's audio: ESPHome's speaker, microphone and media player stand on the chip's I2S and codecs, which the host
 # has not. The host build leaves the audio packages out whole (features/audio*.yaml and a board's audio hardware under
 # hardware/, with the settings rows and the boot steps they bring), and these blocks wherever else they live (a board

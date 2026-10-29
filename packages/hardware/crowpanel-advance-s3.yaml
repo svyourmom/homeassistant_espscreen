@@ -1,0 +1,94 @@
+# ESP Screens - Elecrow CrowPanel Advance ESP32-S3 800 x 480 RGB hardware (16 MB flash, 8 MB octal PSRAM,
+# GT911 touch on GPIO15/16, and STC8H1K28 at 0x30 / PCA9557 at 0x18 board controller for backlight and touch reset).
+#
+# What this board family shares: the ESP32-S3 with octal PSRAM (hardware/esp32s3-rgb.yaml), 16 MB flash, the UART0
+# console on the USB-C port, the touch and controller I2C bus on GPIO15/16, the early I2C touch-reset and dimmable
+# backlight controller (components/crowpanel_advance_io), the polled GT911 touch controller, and the 800 x 480 RGB565
+# panel (ESPHome's CROWPANEL-ADVANCE-7 model).
+packages:
+  chip: !include esp32s3-rgb.yaml
+
+esp32:
+  flash_size: 16MB
+
+logger:
+  tx_buffer_size: 2048
+  # The USB-C port for logs and flashing goes through a CH340C USB-to-UART bridge on UART0.
+  hardware_uart: UART0
+
+# The GT911 and the board controller (STC8H1K28 at 0x30 on V1.2+, PCA9557 at 0x18 on V1.0-V1.1) share the I2C bus.
+i2c:
+  id: touch_bus
+  sda: GPIO15
+  scl: GPIO16
+  frequency: 400kHz
+  scan: true
+
+# Pulses GT911 reset via the I2C board controller at setup_priority::IO while holding GPIO1 low so GT911 latches 0x5D,
+# before GT911Touchscreen::setup() runs at setup_priority::DATA.
+crowpanel_advance_io:
+  id: crowpanel_io
+  i2c_id: touch_bus
+
+output:
+  # No ESP32 GPIO drives the backlight: brightness is an I2C write to the board controller (0 = brightest .. 245 = dark
+  # on the STC8H1K28 at 0x30, or IO0/IO1 on the PCA9557 at 0x18).
+  - platform: template
+    id: gpio_backlight_pwm
+    type: float
+    zero_means_zero: true
+    write_action:
+      - lambda: |-
+          id(crowpanel_io).write_brightness(state);
+
+# The GT911 is polled (no interrupt_pin): ESPHome 2026.10 stops the poller when an internal GPIO interrupt_pin is set,
+# which leaves touch silent on this board.
+touchscreen:
+  - platform: gt911
+    id: ts_touch
+    i2c_id: touch_bus
+    address: 0x5D
+    display: my_display
+    update_interval: 20ms
+
+# The 800 x 480 RGB565 panel: the pins and 20 MHz inverted-clock timings of Elecrow's schematic and ESPHome 2026.10's
+# CROWPANEL-ADVANCE-7 preset, written on `model: RPI` so the board builds on ESPHome 2026.9 (the add-on's version) and
+# 2026.10 alike.
+display:
+  - platform: mipi_rgb
+    model: RPI
+    id: my_display
+    dimensions:
+      width: ${PANEL_W}
+      height: ${PANEL_H}
+    color_order: RGB
+    pclk_frequency: 20MHz
+    pclk_inverted: true
+    de_pin: GPIO42
+    pclk_pin: GPIO39
+    hsync_pin: GPIO40
+    vsync_pin: GPIO41
+    hsync_pulse_width: 4
+    hsync_back_porch: 8
+    hsync_front_porch: 8
+    vsync_pulse_width: 4
+    vsync_back_porch: 8
+    vsync_front_porch: 8
+    data_pins:
+      red:
+        - GPIO7
+        - GPIO17
+        - GPIO18
+        - GPIO3
+        - number: GPIO46
+          ignore_strapping_warning: true
+      green: [GPIO9, GPIO10, GPIO11, GPIO12, GPIO13, GPIO14]
+      blue:
+        - GPIO21
+        - GPIO47
+        - GPIO48
+        - number: GPIO45
+          ignore_strapping_warning: true
+        - GPIO38
+    update_interval: never
+    auto_clear_enabled: false
